@@ -7,7 +7,6 @@ const PORT = process.env.PORT || 3000;
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
-// API endpoint to process serial/model number
 app.get('/api/search-processor', (req, res) => {
     const { serial } = req.query;
 
@@ -17,55 +16,57 @@ app.get('/api/search-processor', (req, res) => {
 
     const query = serial.trim().toUpperCase();
 
-    // Smart Database / Pattern Recognition for common Dell, HP, Lenovo, and Apple serial patterns
-    let detectedProcessor = "";
-    let brand = "Unknown Brand";
+    // Exact Database mapping for your provided models and codes
+    const database = {
+        "HP 240 14 INCH G10": "Intel Core i5-1335U (13th Gen)",
+        "OPTIPLEX 3000": "Intel Core i5-12500 (12th Gen)",
+        "HP 240 14 INCH G9": "Intel Core i5-1235U (12th Gen)",
+        "82TS": "AMD Ryzen 5 7530U (Lenovo IdeaPad Slim 3)",
+        "VICTUS BY HP GAMING LAPTOP 15-FA1XXX": "Intel Core i5-12500H / i7-13700H",
+        "82K1": "AMD Ryzen 5 5600H (Lenovo IdeaPad Gaming 3)",
+        "HP 240R 14 INCH G10": "Intel Core i5-1335U",
+        "HP ZBOOK 8 G1I": "Intel Core Ultra 7 155H",
+        "ZENBOOK S 13 UX5304VA": "Intel Core i7-1355U",
+        "ASUS TUF GAMING F17 FX706HC": "Intel Core i5-11400H",
+        "HP PAVILION LAPTOP 14-EC1XXX": "AMD Ryzen 5 5625U",
+        "82K2": "AMD Ryzen 7 5800H (Lenovo IdeaPad Gaming 3)",
+        "21RSS0H300": "Intel Core Ultra 5 125U (Lenovo ThinkPad)",
+        "ROG ZEPHYRUS G14 GA403UM": "AMD Ryzen 7 8845HS",
+        "VICTUS BY HP GAMING LAPTOP 15-FA2XXX": "Intel Core i5-13420H / i7-13620H",
+        "LATITUDE 7480": "Intel Core i5-7300U / i7-7600U (7th Gen)",
+        "83GS": "Intel Core Ultra 7 155H (Lenovo Yoga / Slim)",
+        "HP 240 G8": "Intel Core i3-1115G4 / i5-1135G7",
+        "HP ZBOOK FIREFLY 14 INCH G11": "Intel Core Ultra 5 125U / Ultra 7 155U"
+    };
 
-    if (query.includes("LATITUDE") || query.includes("INSPIRON") || query.includes("DELL")) {
-        brand = "Dell";
-        if (query.includes("5490") || query.includes("7490")) detectedProcessor = "Intel Core i5-8350U (8th Gen)";
-        else if (query.includes("5400") || query.includes("7400")) detectedProcessor = "Intel Core i5-8265U / i7-8665U";
-        else if (query.includes("5510")) detectedProcessor = "Intel Core i5-1145G7 (11th Gen)";
-        else detectedProcessor = "Intel Core i5 / i7 (Gen 8th - 11th)";
-    } 
-    else if (query.includes("PROBOOK") || query.includes("ELITEBOOK") || query.includes("HP")) {
-        brand = "HP";
-        if (query.includes("450 G6")) detectedProcessor = "Intel Core i5-8265U";
-        else if (query.includes("450 G7")) detectedProcessor = "Intel Core i5-10210U";
-        else if (query.includes("840 G5")) detectedProcessor = "Intel Core i5-8350U";
-        else detectedProcessor = "Intel Core i5 / i7 (HP Standard Spec)";
+    // Find matching model key
+    let foundProcessor = null;
+    let matchedKey = "";
+    for (let key in database) {
+        if (query.includes(key)) {
+            foundProcessor = database[key];
+            matchedKey = key;
+            break;
+        }
     }
-    else if (query.includes("THINKPAD") || query.includes("LENOVO")) {
-        brand = "Lenovo";
-        if (query.includes("T480")) detectedProcessor = "Intel Core i5-8250U / i7-8550U";
-        else if (query.includes("T490")) detectedProcessor = "Intel Core i5-8265U / i5-8365U";
-        else detectedProcessor = "Intel Core i5 / AMD Ryzen 5 Pro";
-    }
-    else if (query.includes("MACBOOK") || query.includes("APL")) {
-        brand = "Apple";
-        if (query.includes("M1")) detectedProcessor = "Apple M1 Chip (8-core CPU)";
-        else if (query.includes("M2")) detectedProcessor = "Apple M2 Chip";
-        else detectedProcessor = "Apple Silicon M-Series";
-    }
-    else {
-        // Generic fallback search link generator so user can check manually if not hardcoded
+
+    if (foundProcessor) {
+        return res.json({
+            success: true,
+            processor: foundProcessor,
+            summary: `Exact match found for: ${matchedKey}`
+        });
+    } else {
         return res.json({
             success: false,
-            message: "Direct automated lookup restricted on cloud server. Click below to check manually on official support site.",
+            message: "Model not found in the custom database. Please check manufacturer official support.",
             searchLinks: [
-                { name: "Check on Dell Support", url: `https://www.dell.com/support/home/en-in/quicksearch?q=${encodeURIComponent(serial)}` },
                 { name: "Check on HP Support", url: `https://support.hp.com/in-en/search?q=${encodeURIComponent(serial)}` },
-                { name: "Check on Lenovo Support", url: `https://pcsupport.lenovo.com/in/en/search?query=${encodeURIComponent(serial)}` }
+                { name: "Check on Lenovo Support", url: `https://pcsupport.lenovo.com/in/en/search?query=${encodeURIComponent(serial)}` },
+                { name: "Check on Dell Support", url: `https://www.dell.com/support/home/en-in/quicksearch?q=${encodeURIComponent(serial)}` }
             ]
         });
     }
-
-    return res.json({
-        success: true,
-        brand: brand,
-        processor: detectedProcessor,
-        summary: `Identified via model pattern matching for query: ${serial}`
-    });
 });
 
 app.listen(PORT, () => {
