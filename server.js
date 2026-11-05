@@ -1,5 +1,6 @@
 const express = require('express');
 const axios = require('axios');
+const cheerio = require('cheerio');
 const path = require('path');
 
 const app = express();
@@ -8,72 +9,71 @@ const PORT = process.env.PORT || 3000;
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
-// API endpoint to search processor details using DuckDuckGo Instant Answer API
 app.get('/api/search-processor', async (req, res) => {
     const { serial } = req.query;
 
     if (!serial) {
-        return res.status(400).json({ error: 'Serial / Model number required' });
+        return res.status(400).json({ error: 'Serial or model number required' });
     }
 
     try {
-        // Using DuckDuckGo official free API
-        const query = encodeURIComponent(serial + ' laptop processor spec');
-        const apiUrl = `https://api.duckduckgo.com/?q=${query}&format=json&no_html=1&skip_disambig=1`;
+        // Query DuckDuckGo HTML version with browser-like headers
+        const searchUrl = `https://html.duckduckgo.com/html/?q=${encodeURIComponent(serial + ' laptop processor specifications')}`;
         
-        const response = await axios.get(apiUrl, {
+        const response = await axios.get(searchUrl, {
             headers: {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+                'Accept-Language': 'en-US,en;q=0.5'
             }
         });
 
-        const data = response.data;
-        let combinedText = '';
+        const $ = cheerio.load(response.data);
+        let snippets = [];
 
-        // Collect text from abstract and related topics
-        if (data.AbstractText) {
-            combinedText += data.AbstractText + ' ';
-        }
-        
-        if (data.RelatedTopics && data.RelatedTopics.length > 0) {
-            data.RelatedTopics.forEach(topic => {
-                if (topic.Text) {
-                    combinedText += topic.Text + ' ';
-                }
-            });
-        }
+        // Extract text from DuckDuckGo HTML result snippets
+        $('.result__snippet').each((i, el) => {
+            snippets.push($(el).text().trim());
+        });
 
-        // Regex patterns to detect Intel, AMD, or Apple Silicon Processors
-        const cpuRegex = /(Intel\s+Core\s+i[3579]-?\d{4,5}[A-Z]*|AMD\s+Ryzen\s+[3579]\s+\d{4}[A-Z]*|Apple\s+M[1234]\s*(Pro|Max|Ultra)?|Intel\s+Celeron\s+\w+|Intel\s+Pentium\s+\w+)/i;
-        const match = combinedText.match(cpuRegex);
+        // Also grab result titles just in case
+        $('.result__title').each((i, el) => {
+            snippets.push($(el).text().trim());
+        });
+
+        const fullText = snippets.join(' ');
+
+        // Expanded Regex to catch Intel, AMD, and Apple processors accurately
+        const cpuRegex = /(Intel\s*(Core)?\s*i[3579]-?\d{4,5}[A-Z]*|AMD\s*Ryzen\s*[3579]\s*\d{4}[A-Z]*|Apple\s*M[1234]\s*(Pro|Max|Ultra)?|Intel\s*Celeron\s*N?\d+|Intel\s*Pentium\s*\w+|Intel\s*Core\s*Ultra\s*[579]\s*\d{3}[A-Z]*)/i;
+        const match = fullText.match(cpuRegex);
 
         if (match) {
             return res.json({ 
                 success: true, 
                 processor: match[0], 
-                summary: data.AbstractText || 'Found via database search match.' 
+                summary: snippets.slice(0, 2).join(' | ') 
             });
         } else {
-            // Fallback: If API returns text but regex doesn't match directly, return abstract text if available
-            if (data.AbstractText) {
+            // If regex didn't find an exact CPU string, but we got web snippets, return the snippets so you can see what came up
+            if (snippets.length > 0) {
                 return res.json({ 
-                    success: true, 
-                    processor: "Check summary details below", 
-                    summary: data.AbstractText 
+                    success: false, 
+                    message: 'Web results found, but exact CPU pattern not matched.', 
+                    snippets: snippets.slice(0, 3) 
                 });
             }
 
             return res.json({ 
                 success: false, 
-                message: 'Processor details not found for this specific serial/model.', 
+                message: 'No results found on the web for this serial/model number.', 
                 snippets: [] 
             });
         }
     } catch (err) {
-        return res.status(500).json({ error: 'Internet fetch failed', details: err.message });
+        return res.status(500).json({ error: 'Server search error', details: err.message });
     }
 });
 
 app.listen(PORT, () => {
-    console.log(`Server running on http://localhost:${PORT}`);
+    console.log(`Server running on port ${PORT}`);
 });
