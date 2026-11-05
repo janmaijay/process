@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Serial Number Processor Lookup</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #0f172a;
+            color: #f8fafc;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+        }
+        .card {
+            background: #1e293b;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+            width: 100%;
+            max-width: 480px;
+        }
+        h2 { text-align: center; margin-bottom: 20px; color: #38bdf8; }
+        .input-group { display: flex; gap: 10px; margin-bottom: 20px; }
+        input {
+            flex: 1;
+            padding: 12px;
+            border-radius: 6px;
+            border: 1px solid #334155;
+            background: #0f172a;
+            color: white;
+            font-size: 16px;
+        }
+        button {
+            padding: 12px 20px;
+            background: #0284c7;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: bold;
+        }
+        button:hover { background: #0369a1; }
+        #resultBox {
+            padding: 15px;
+            border-radius: 6px;
+            background: #0f172a;
+            border: 1px solid #334155;
+            display: none;
+        }
+        .status { font-weight: bold; color: #4ade80; margin-bottom: 8px; }
+        .snippet { font-size: 13px; color: #94a3b8; }
+    </style>
+</head>
+<body>
+
+<div class="card">
+    <h2>System Spec Lookup</h2>
+    <div class="input-group">
+        <input type="text" id="serialInput" placeholder="Enter Serial or Model Number..." />
+        <button onclick="searchProcessor()">Search</button>
+    </div>
+
+    <div id="resultBox">
+        <div id="status" class="status"></div>
+        <div id="processorDetails"></div>
+        <div id="snippetDetails" class="snippet"></div>
+    </div>
+</div>
+
+<script>
+async function searchProcessor() {
+    const serial = document.getElementById('serialInput').value.trim();
+    const resultBox = document.getElementById('resultBox');
+    const status = document.getElementById('status');
+    const processorDetails = document.getElementById('processorDetails');
+    const snippetDetails = document.getElementById('snippetDetails');
+
+    if (!serial) {
+        alert("Please enter a valid serial or model number");
+        return;
+    }
+
+    resultBox.style.display = 'block';
+    status.innerText = "Searching internet...";
+    status.style.color = "#38bdf8";
+    processorDetails.innerText = "";
+    snippetDetails.innerText = "";
+
+    try {
+        const response = await fetch(`/api/search-processor?serial=${encodeURIComponent(serial)}`);
+        const data = await response.json();
+
+        if (data.success) {
+            status.innerText = "Processor Detected:";
+            status.style.color = "#4ade80";
+            processorDetails.innerHTML = `<h3>${data.processor}</h3>`;
+            snippetDetails.innerText = data.summary || '';
+        } else {
+            status.innerText = "Direct Match Not Found";
+            status.style.color = "#f87171";
+            processorDetails.innerText = data.message;
+            if (data.snippets && data.snippets.length) {
+                snippetDetails.innerHTML = "<br><b>Related Web Snippets:</b><br>" + data.snippets.join('<br><br>');
+            }
+        }
+    } catch (err) {
+        status.innerText = "Error fetching data";
+        status.style.color = "#f87171";
+    }
+}
+</script>
+
+</body>
+</html>
